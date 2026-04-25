@@ -1,0 +1,18 @@
+[package]
+name = "basitop"
+version = "0.1.0"
+edition = "2021"
+description = "Beautiful Apple Silicon performance monitor"
+
+[dependencies]
+macmon = "0.7"
+ratatui = "0.30"
+crossterm = "0.29"
+clap = { version = "4", features = ["derive"] }
+sysinfo = "0.35"
+libc = "0.2"
+plist = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
