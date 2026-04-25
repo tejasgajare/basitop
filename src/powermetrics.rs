@@ -31,11 +31,7 @@ fn truncate_log() {
 /// Append a timestamped diagnostic line. Best-effort: silently drops if the
 /// file isn't writable. Format: `[HH:MM:SS.mmm] [basitop] msg`.
 fn log_event(msg: &str) {
-    let mut f = match OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(LOG_PATH)
-    {
+    let mut f = match OpenOptions::new().create(true).append(true).open(LOG_PATH) {
         Ok(f) => f,
         Err(_) => return,
     };
@@ -169,11 +165,7 @@ impl PowerMetricsCollector {
             interval_ms.to_string(),
         ];
         full_args.extend(pm_args.iter().cloned());
-        log_event(&format!(
-            "exec: {} {}",
-            program,
-            full_args.join(" ")
-        ));
+        log_event(&format!("exec: {} {}", program, full_args.join(" ")));
 
         let mut cmd = Command::new(program);
         cmd.args(&full_args);
@@ -198,11 +190,7 @@ impl PowerMetricsCollector {
                 c
             }
             Err(e) => {
-                log_event(&format!(
-                    "spawn FAILED: {} (kind={:?})",
-                    e,
-                    e.kind()
-                ));
+                log_event(&format!("spawn FAILED: {} (kind={:?})", e, e.kind()));
                 dead.store(true, Ordering::Relaxed);
                 return Self {
                     rx,
@@ -237,10 +225,7 @@ impl PowerMetricsCollector {
         thread::spawn(move || {
             log_event("reader thread started");
             let count = run_reader(stdout, tx, running_clone);
-            log_event(&format!(
-                "reader thread exiting: parsed={} samples",
-                count
-            ));
+            log_event(&format!("reader thread exiting: parsed={} samples", count));
             // Try to capture the child's exit status so the user can see
             // *why* it died (e.g. sudo: 1, missing binary: 127, killed: -9).
             // Use try_lock: if stop() is mid-kill+wait it already owns the
@@ -249,14 +234,11 @@ impl PowerMetricsCollector {
             match child_for_reader.try_lock() {
                 Ok(mut guard) => match guard.as_mut() {
                     Some(c) => match c.try_wait() {
-                        Ok(Some(status)) => {
-                            log_event(&format!("child exit status: {}", status))
-                        }
+                        Ok(Some(status)) => log_event(&format!("child exit status: {}", status)),
                         Ok(None) => match c.wait() {
-                            Ok(status) => log_event(&format!(
-                                "child exit status (after wait): {}",
-                                status
-                            )),
+                            Ok(status) => {
+                                log_event(&format!("child exit status (after wait): {}", status))
+                            }
                             Err(e) => log_event(&format!("wait err: {}", e)),
                         },
                         Err(e) => log_event(&format!("try_wait err: {}", e)),

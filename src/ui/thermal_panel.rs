@@ -10,7 +10,9 @@ use ratatui::widgets::{Block, BorderType, Borders, Widget};
 
 use crate::metrics::MetricsHistory;
 use crate::powermetrics::ThermalPressure;
-use crate::theme::{self, GradientPalette, BORDER_NORMAL, BORDER_SELECTED, BRIGHT_TEXT, LABEL_COLOR, TITLE_COLOR};
+use crate::theme::{
+    self, GradientPalette, BORDER_NORMAL, BORDER_SELECTED, BRIGHT_TEXT, LABEL_COLOR, TITLE_COLOR,
+};
 
 const TEMP_MAX: f32 = 110.0;
 // Dark background for unfilled blocks
@@ -29,7 +31,11 @@ impl<'a> ThermalPanel<'a> {
 
 impl Widget for ThermalPanel<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let border_color = if self.selected { BORDER_SELECTED } else { BORDER_NORMAL };
+        let border_color = if self.selected {
+            BORDER_SELECTED
+        } else {
+            BORDER_NORMAL
+        };
         let title_style = if self.selected {
             Style::default().fg(BORDER_SELECTED).bold()
         } else {
@@ -43,10 +49,7 @@ impl Widget for ThermalPanel<'_> {
         // (Unknown) — better to omit than show a meaningless placeholder.
         let mut title_spans = vec![Span::styled(" Thermal ", title_style)];
         if let Some((label, color)) = throttle_status(pressure) {
-            title_spans.push(Span::styled(
-                "Throttle: ",
-                Style::default().fg(LABEL_COLOR),
-            ));
+            title_spans.push(Span::styled("Throttle: ", Style::default().fg(LABEL_COLOR)));
             title_spans.push(Span::styled(
                 format!("{} ", label),
                 Style::default().fg(color).bold(),
@@ -72,10 +75,26 @@ impl Widget for ThermalPanel<'_> {
 
         // Row 0: CPU, row 1: gap, row 2: GPU — the gap keeps the two bars
         // from reading as a single double-height block.
-        render_row(Rect::new(inner.x, inner.y, inner.width, 1), buf, "CPU", cpu_temp, &palette);
-        let gpu_y = if inner.height >= 3 { inner.y + 2 } else { inner.y + 1 };
+        render_row(
+            Rect::new(inner.x, inner.y, inner.width, 1),
+            buf,
+            "CPU",
+            cpu_temp,
+            &palette,
+        );
+        let gpu_y = if inner.height >= 3 {
+            inner.y + 2
+        } else {
+            inner.y + 1
+        };
         if inner.height >= 2 {
-            render_row(Rect::new(inner.x, gpu_y, inner.width, 1), buf, "GPU", gpu_temp, &palette);
+            render_row(
+                Rect::new(inner.x, gpu_y, inner.width, 1),
+                buf,
+                "GPU",
+                gpu_temp,
+                &palette,
+            );
         }
     }
 }
@@ -98,8 +117,11 @@ fn render_row(area: Rect, buf: &mut Buffer, label: &str, temp: f32, palette: &Gr
     // Suffix: temperature on the right.
     if area.width >= SUFFIX {
         let sx = area.x + area.width - SUFFIX;
-        Line::from(Span::styled(temp_str, Style::default().fg(BRIGHT_TEXT).bold()))
-            .render(Rect::new(sx, area.y, SUFFIX, 1), buf);
+        Line::from(Span::styled(
+            temp_str,
+            Style::default().fg(BRIGHT_TEXT).bold(),
+        ))
+        .render(Rect::new(sx, area.y, SUFFIX, 1), buf);
     }
 
     // Heat bar between prefix and suffix
@@ -126,7 +148,6 @@ fn render_row(area: Rect, buf: &mut Buffer, label: &str, temp: f32, palette: &Gr
             }
         }
     }
-
 }
 
 /// Returns (label, color) for the throttle indicator, or `None` if we
@@ -134,9 +155,7 @@ fn render_row(area: Rect, buf: &mut Buffer, label: &str, temp: f32, palette: &Gr
 fn throttle_status(p: ThermalPressure) -> Option<(&'static str, Color)> {
     match p {
         ThermalPressure::Unknown => None,
-        ThermalPressure::Nominal | ThermalPressure::Fair => {
-            Some(("No", Color::Rgb(120, 200, 140)))
-        }
+        ThermalPressure::Nominal | ThermalPressure::Fair => Some(("No", Color::Rgb(120, 200, 140))),
         ThermalPressure::Serious | ThermalPressure::Critical => {
             Some(("Yes", Color::Rgb(230, 90, 90)))
         }

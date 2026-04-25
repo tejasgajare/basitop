@@ -207,15 +207,24 @@ fn render_per_core(
     let cols = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(remaining);
 
-    let cores_per_col = core_count.div_ceil(2);
+    // Split by cluster boundary so each column is homogeneous and labels use
+    // cluster-local indices (E0/P0, not E0/P12 on M5 Max).
+    let cluster_starts = [0, ecpu_n];
+    let cluster_ends = [ecpu_n.min(core_count), core_count];
+    let cluster_labels = [ecpu_label, pcpu_label];
 
     for col_idx in 0..2 {
         let col_area = cols[col_idx];
+        let start = cluster_starts[col_idx];
+        let end = cluster_ends[col_idx];
+        let label_prefix = cluster_labels[col_idx];
+
         for row in 0..col_area.height as usize {
-            let core_idx = col_idx * cores_per_col + row;
-            if core_idx >= core_count {
+            let core_idx = start + row;
+            if core_idx >= end {
                 break;
             }
+            let local_idx = core_idx - start;
 
             let y = col_area.y + row as u16;
             let usage = history
@@ -224,14 +233,7 @@ fn render_per_core(
                 .and_then(|rb| rb.last().copied())
                 .unwrap_or(0.0);
             let color = CORE_COLORS[core_idx % CORE_COLORS.len()];
-            let core_type = if core_idx < ecpu_n {
-                ecpu_label
-            } else {
-                pcpu_label
-            };
-            // Left-align label in 4 chars: "P0  ", "P10 " — no space between
-            // letter and number so single-digit cores match btop style.
-            let label = format!("{:<4}", format!("{}{}", core_type, core_idx));
+            let label = format!("{:<4}", format!("{}{}", label_prefix, local_idx));
             let label_span = Span::styled(label, Style::default().fg(DIM_TEXT));
             Line::from(label_span).render(Rect::new(col_area.x, y, 4.min(col_area.width), 1), buf);
 

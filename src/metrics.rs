@@ -1,5 +1,5 @@
 use macmon::Metrics;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Arc};
 use std::thread;
 use sysinfo::System;
@@ -191,8 +191,7 @@ impl MetricsHistory {
         let n = sample.per_core_usage.len();
         let cap = self.ecpu_usage.capacity;
         if n > self.per_core_usage.len() {
-            self.per_core_usage
-                .resize_with(n, || RingBuffer::new(cap));
+            self.per_core_usage.resize_with(n, || RingBuffer::new(cap));
         }
         if n > self.core_count {
             self.core_count = n;
@@ -223,6 +222,7 @@ pub struct MetricsCollector {
     pub powermetrics_available: bool,
     receiver: mpsc::Receiver<SampleData>,
     pm: Option<PowerMetricsCollector>,
+    sample_interval_ms: Arc<AtomicU32>,
     _running: Arc<AtomicBool>,
 }
 
@@ -233,6 +233,8 @@ impl MetricsCollector {
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let running = Arc::new(AtomicBool::new(true));
         let running_clone = running.clone();
+        let sample_interval_ms = Arc::new(AtomicU32::new(sample_duration_ms.max(250)));
+        let interval_clone = sample_interval_ms.clone();
         let (tx, rx) = mpsc::channel();
 
         thread::spawn(move || {
@@ -252,13 +254,16 @@ impl MetricsCollector {
             thread::sleep(std::time::Duration::from_millis(200));
 
             while running_clone.load(Ordering::Relaxed) {
-                match sampler.get_metrics(sample_duration_ms) {
+                // Re-read each loop so `+`/`-` keybindings change the
+                // sample window live, without restarting the thread.
+                let dur = interval_clone.load(Ordering::Relaxed).max(250);
+                match sampler.get_metrics(dur) {
                     Ok(metrics) => {
                         // One refresh per iteration. The window is the gap
                         // between successive calls here, which is always
-                        // >= sample_duration_ms (clamped to >= 250ms in
-                        // main.rs) and therefore safely above sysinfo's
-                        // 200ms staleness threshold.
+                        // >= sample_duration_ms (clamped to >= 250ms above)
+                        // and therefore safely above sysinfo's 200ms
+                        // staleness threshold.
                         sys.refresh_cpu_usage();
                         let per_core_usage: Vec<f32> =
                             sys.cpus().iter().map(|cpu| cpu.cpu_usage()).collect();
@@ -293,8 +298,17 @@ impl MetricsCollector {
             powermetrics_available: pm_available,
             receiver: rx,
             pm,
+            sample_interval_ms,
             _running: running,
         })
+    }
+
+    /// Live-update the macmon sampler interval. Powermetrics keeps its
+    /// original spawn-time interval — its `-i` arg is fixed, restarting
+    /// the child mid-session would drop a sudo prompt on the user.
+    pub fn set_sample_interval(&self, ms: u32) {
+        self.sample_interval_ms
+            .store(ms.max(250), Ordering::Relaxed);
     }
 
     /// Drain all pending metrics, keeping only the latest

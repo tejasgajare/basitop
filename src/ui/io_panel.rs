@@ -3,35 +3,26 @@
 //! a flat "no data" baseline.
 //!
 //! Each lane is a stacked pair (read/in on top, write/out on bottom)
-//! sharing the lane's local peak as the chart max so quiet periods
-//! still produce visible shape.
+//! sharing an implicit x-axis. Each side normalizes independently
+//! against its own visible-window peak so a long-past spike never
+//! squashes the current signal into invisibility.
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Style;
+use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Widget};
 
 use crate::metrics::MetricsHistory;
 use crate::theme::{
-    GradientPalette, Hsl, BORDER_NORMAL, BORDER_SELECTED, BRIGHT_TEXT, DIM_TEXT, LABEL_COLOR,
-    TITLE_COLOR,
+    BORDER_NORMAL, BORDER_SELECTED, BRIGHT_TEXT, DIM_TEXT, LABEL_COLOR, TITLE_COLOR,
 };
 use crate::widgets::{BrailleChart, ChartMode};
 
-fn disk_palette() -> GradientPalette {
-    GradientPalette::new(vec![
-        (0.0, Hsl::new(210.0, 0.65, 0.50)),
-        (1.0, Hsl::new(190.0, 0.85, 0.60)),
-    ])
-}
-
-fn net_palette() -> GradientPalette {
-    GradientPalette::new(vec![
-        (0.0, Hsl::new(160.0, 0.55, 0.50)),
-        (1.0, Hsl::new(140.0, 0.85, 0.60)),
-    ])
-}
+const DISK_READ_COLOR: Color = Color::Rgb(97, 214, 214);
+const DISK_WRITE_COLOR: Color = Color::Rgb(220, 180, 80);
+const NET_DL_COLOR: Color = Color::Rgb(86, 182, 94);
+const NET_UL_COLOR: Color = Color::Rgb(214, 130, 200);
 
 pub struct IoPanel<'a> {
     history: &'a MetricsHistory,
@@ -85,62 +76,89 @@ impl Widget for IoPanel<'_> {
             lanes[0],
             buf,
             "DISK",
-            ("R", &disk_r),
-            ("W", &disk_w),
-            &disk_palette(),
+            Side {
+                tag: "R",
+                data: &disk_r,
+                color: DISK_READ_COLOR,
+            },
+            Side {
+                tag: "W",
+                data: &disk_w,
+                color: DISK_WRITE_COLOR,
+            },
             true,
         );
         render_pair(
             lanes[1],
             buf,
             "NET",
-            ("\u{2193}", &net_rx),
-            ("\u{2191}", &net_tx),
-            &net_palette(),
+            Side {
+                tag: "\u{2193}",
+                data: &net_rx,
+                color: NET_DL_COLOR,
+            },
+            Side {
+                tag: "\u{2191}",
+                data: &net_tx,
+                color: NET_UL_COLOR,
+            },
             false,
         );
     }
+}
+
+struct Side<'a> {
+    tag: &'a str,
+    data: &'a [f32],
+    color: Color,
 }
 
 fn render_pair(
     area: Rect,
     buf: &mut Buffer,
     label: &str,
-    a: (&str, &[f32]),
-    b: (&str, &[f32]),
-    palette: &GradientPalette,
+    a: Side<'_>,
+    b: Side<'_>,
     show_separator: bool,
 ) {
     if area.height < 2 {
         return;
     }
-    let cur_a = a.1.last().copied().unwrap_or(0.0).max(0.0);
-    let cur_b = b.1.last().copied().unwrap_or(0.0).max(0.0);
-    let peak =
-        a.1.iter()
-            .chain(b.1.iter())
+    let cur_a = a.data.last().copied().unwrap_or(0.0).max(0.0);
+    let cur_b = b.data.last().copied().unwrap_or(0.0).max(0.0);
+
+    // Normalize each side against the peak of just the visible window
+    // (2 samples per cell column thanks to the Braille sub-grid). Using
+    // the full ring-buffer peak makes a single old spike collapse all
+    // current samples to zero dots.
+    let visible = (area.width as usize).saturating_mul(2).max(1);
+    let visible_peak = |data: &[f32]| -> f32 {
+        let start = data.len().saturating_sub(visible);
+        data[start..]
+            .iter()
             .copied()
             .filter(|v| v.is_finite())
-            .fold(0.0f32, f32::max);
-    let chart_max = peak.max(1024.0);
+            .fold(0.0f32, f32::max)
+    };
+    let peak_a = visible_peak(a.data);
+    let peak_b = visible_peak(b.data);
+    let max_a = peak_a.max(1024.0);
+    let max_b = peak_b.max(1024.0);
 
     let header = Line::from(vec![
         Span::styled(
             format!(" {} ", label),
             Style::default().fg(LABEL_COLOR).bold(),
         ),
-        Span::styled(format!("{} ", a.0), Style::default().fg(DIM_TEXT)),
-        Span::styled(
-            format!("{:>9} ", fmt_bps(cur_a)),
-            Style::default().fg(BRIGHT_TEXT).bold(),
-        ),
-        Span::styled(format!("  {} ", b.0), Style::default().fg(DIM_TEXT)),
-        Span::styled(
-            format!("{:>9}", fmt_bps(cur_b)),
-            Style::default().fg(BRIGHT_TEXT).bold(),
-        ),
-        Span::styled("   peak ", Style::default().fg(DIM_TEXT)),
-        Span::styled(fmt_bps(peak), Style::default().fg(LABEL_COLOR)),
+        Span::styled(format!("{} ", a.tag), Style::default().fg(a.color).bold()),
+        Span::styled(fmt_bps(cur_a), Style::default().fg(BRIGHT_TEXT).bold()),
+        Span::styled("  peak ", Style::default().fg(DIM_TEXT)),
+        Span::styled(fmt_bps(peak_a), Style::default().fg(LABEL_COLOR)),
+        Span::styled("    ", Style::default()),
+        Span::styled(format!("{} ", b.tag), Style::default().fg(b.color).bold()),
+        Span::styled(fmt_bps(cur_b), Style::default().fg(BRIGHT_TEXT).bold()),
+        Span::styled("  peak ", Style::default().fg(DIM_TEXT)),
+        Span::styled(fmt_bps(peak_b), Style::default().fg(LABEL_COLOR)),
     ]);
     header.render(Rect::new(area.x, area.y, area.width, 1), buf);
 
@@ -158,16 +176,16 @@ fn render_pair(
     let top_area = Rect::new(area.x, area.y + 1, area.width, top_h);
     let bot_area = Rect::new(area.x, area.y + 1 + top_h, area.width, bot_h);
 
-    // btop-style mirror chart: rx/read above the implicit x-axis, tx/write
-    // hanging below it. Both halves share `chart_max` so amplitudes are
-    // comparable across the seam.
-    BrailleChart::new(a.1, ChartMode::FilledArea)
-        .max(chart_max)
-        .palette(palette)
+    // btop-style mirror chart with each side independently normalized:
+    // top half grows up from the seam, bottom half hangs down. Solid
+    // per-direction colors make it instantly clear which lane is which.
+    BrailleChart::new(a.data, ChartMode::FilledArea)
+        .max(max_a)
+        .color(a.color)
         .render(top_area, buf);
-    BrailleChart::new(b.1, ChartMode::FilledAreaInverted)
-        .max(chart_max)
-        .palette(palette)
+    BrailleChart::new(b.data, ChartMode::FilledAreaInverted)
+        .max(max_b)
+        .color(b.color)
         .render(bot_area, buf);
 
     if show_separator {
@@ -183,17 +201,28 @@ fn render_pair(
     }
 }
 
+/// Returns a fixed 10-char-wide string so values don't shift columns
+/// when the magnitude crosses a unit boundary. The number gains/loses
+/// decimal places as it grows so the unit column stays aligned.
 fn fmt_bps(v: f32) -> String {
-    let units = [("B/s", 1.0), ("KB/s", 1024.0), ("MB/s", 1024.0 * 1024.0)];
-    if v >= 1024.0 * 1024.0 * 1024.0 {
-        return format!("{:.2} GB/s", v / (1024.0 * 1024.0 * 1024.0));
-    }
-    let mut out = format!("{:.0} B/s", v);
-    for (label, base) in units.iter().rev() {
-        if v >= *base {
-            out = format!("{:.2} {}", v / base, label);
-            break;
-        }
-    }
-    out
+    const KB: f32 = 1024.0;
+    const MB: f32 = 1024.0 * 1024.0;
+    const GB: f32 = 1024.0 * 1024.0 * 1024.0;
+    let (val, unit) = if v >= GB {
+        (v / GB, "GB/s")
+    } else if v >= MB {
+        (v / MB, "MB/s")
+    } else if v >= KB {
+        (v / KB, "KB/s")
+    } else {
+        (v, "B/s ")
+    };
+    let body = if val >= 100.0 {
+        format!("{:>5.0} {}", val, unit)
+    } else if val >= 10.0 {
+        format!("{:>5.1} {}", val, unit)
+    } else {
+        format!("{:>5.2} {}", val, unit)
+    };
+    format!("{:>10}", body)
 }

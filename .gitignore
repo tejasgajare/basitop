@@ -1,1 +1,21 @@
+# Rust
 /target
+**/*.rs.bk
+*.pdb
+
+# macOS
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.iml
+
+# Local env
+.env
+.env.local
+
+# Diagnostic logs (powermetrics writes here at runtime)
+/tmp/basitop_pm.log

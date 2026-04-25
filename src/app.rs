@@ -42,16 +42,18 @@ impl AppState {
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
-        let tick_duration = Duration::from_millis(self.update_interval_ms as u64);
         let mut last_tick = Instant::now();
 
         while self.running {
-            // Draw
+            // Refresh per-iteration so +/- key updates take effect
+            // immediately — both for the redraw cadence and for the
+            // sampler thread's window length.
+            let tick_duration = Duration::from_millis(self.update_interval_ms as u64);
+
             terminal.draw(|frame| {
                 crate::ui::draw(frame.area(), frame.buffer_mut(), self);
             })?;
 
-            // Wait for event or tick
             let timeout = tick_duration
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or(Duration::ZERO);
@@ -60,7 +62,7 @@ impl AppState {
                 match event::read()? {
                     Event::Key(key) => self.handle_key(key),
                     Event::Mouse(mouse) => self.handle_mouse(mouse),
-                    Event::Resize(_, _) => {} // ratatui handles this
+                    Event::Resize(_, _) => {}
                     _ => {}
                 }
             }
@@ -73,6 +75,15 @@ impl AppState {
 
         self.collector.stop();
         Ok(())
+    }
+
+    fn apply_interval_change(&self) {
+        // Sampler window is half the redraw interval (matches main.rs
+        // initial wiring) so the chart never shows the same sample
+        // twice in a row. Floor at 250 ms — sysinfo and macmon both
+        // need at least that to produce non-stale deltas.
+        let sample_ms = (self.update_interval_ms / 2).max(250);
+        self.collector.set_sample_interval(sample_ms);
     }
 
     fn handle_key(&mut self, key: event::KeyEvent) {
@@ -92,9 +103,11 @@ impl AppState {
             }
             KeyCode::Char('+') | KeyCode::Char('=') if self.update_interval_ms < 5000 => {
                 self.update_interval_ms += 500;
+                self.apply_interval_change();
             }
             KeyCode::Char('-') if self.update_interval_ms > 500 => {
                 self.update_interval_ms -= 500;
+                self.apply_interval_change();
             }
             // Arrow key navigation (spatial). Right column stack:
             // 2 power -> 3 memory -> 4 io -> 5 thermal.

@@ -1,8 +1,16 @@
 //! Reusable Braille-based chart with multiple visual modes.
 //!
 //! All modes write directly into the `Buffer` (no `ratatui::widgets::Chart`).
-//! The horizontal resolution is `2 * area.width` thanks to the 2-column
-//! Braille matrix; the vertical resolution is `4 * area.height`.
+//! Vertical resolution is `4 * area.height` thanks to the Braille dot
+//! matrix.
+//!
+//! Each cell holds a *pair of consecutive samples* — left sub-column =
+//! older, right sub-column = newer. Adjacent cells share a sample at
+//! the seam (cell K's right and cell K+1's left both render the same
+//! sample), so once a cell is rendered its content is fixed and the
+//! chart slides left by exactly one full 2×4 block per new sample.
+//! This keeps sub-column curve detail while avoiding the half-cell
+//! flicker of plain sub-column granularity.
 //!
 //! Pick a mode that visually matches the metric type:
 //! - [`ChartMode::FilledArea`]: dense filled area, btop-style. Good for
@@ -87,6 +95,20 @@ fn safe(v: f32) -> f32 {
     }
 }
 
+/// Pair-window slice. Each visible cell holds (data[pair_start + i],
+/// data[pair_start + i + 1]) — older sample on the left, newer on the
+/// right. Right-aligned so newest data sits at the rightmost cell.
+/// Returns None if there isn't enough data for even one pair.
+fn pair_window(len: usize, cw: usize) -> Option<(usize, usize, usize)> {
+    if len < 2 || cw == 0 {
+        return None;
+    }
+    let cells_to_show = cw.min(len - 1);
+    let cell_offset = cw - cells_to_show;
+    let pair_start = (len - 1) - cells_to_show;
+    Some((cell_offset, pair_start, cells_to_show))
+}
+
 fn pick_color(chart: &BrailleChart<'_>, t: f64) -> Color {
     if let Some(c) = chart.base_color {
         return c;
@@ -117,24 +139,27 @@ fn render_filled_area(chart: BrailleChart<'_>, area: Rect, buf: &mut Buffer) {
     let cw = area.width as usize;
     let ch = area.height as usize;
     let total_dots_y = ch * 4;
-    let dot_cols = cw * 2;
 
-    // Right-align the most recent `dot_cols` samples so the chart slides
-    // left by exactly one sub-column per new sample.
-    let n = dot_cols.min(chart.data.len());
-    let start = chart.data.len().saturating_sub(n);
-    let slice = &chart.data[start..];
-    let offset = dot_cols.saturating_sub(slice.len());
+    let Some((cell_offset, pair_start, cells_to_show)) = pair_window(chart.data.len(), cw) else {
+        return;
+    };
 
     let mut canvas = BrailleCanvas::new(area.width, area.height);
 
-    for (i, &v) in slice.iter().enumerate() {
-        let dx = offset + i;
-        let ratio = (safe(v) / chart.max).clamp(0.0, 1.0);
-        let height_dots = (ratio * total_dots_y as f32).round() as usize;
-        for k in 0..height_dots {
-            let dy = total_dots_y - 1 - k;
-            canvas.set_dot(dx, dy);
+    for i in 0..cells_to_show {
+        let cell_x = cell_offset + i;
+        for sub in 0..2 {
+            let v = chart.data[pair_start + i + sub];
+            let ratio = (safe(v) / chart.max).clamp(0.0, 1.0);
+            // Floor at 1 so quiet/zero samples still draw a dot at the
+            // axis. The chart reads as a continuous dotted baseline
+            // (btop style) instead of vanishing into blank gaps.
+            let height_dots = ((ratio * total_dots_y as f32).round() as usize).max(1);
+            let dx = cell_x * 2 + sub;
+            for k in 0..height_dots {
+                let dy = total_dots_y - 1 - k;
+                canvas.set_dot(dx, dy);
+            }
         }
     }
 
@@ -154,22 +179,25 @@ fn render_filled_area_inverted(chart: BrailleChart<'_>, area: Rect, buf: &mut Bu
     let cw = area.width as usize;
     let ch = area.height as usize;
     let total_dots_y = ch * 4;
-    let dot_cols = cw * 2;
 
-    let n = dot_cols.min(chart.data.len());
-    let start = chart.data.len().saturating_sub(n);
-    let slice = &chart.data[start..];
-    let offset = dot_cols.saturating_sub(slice.len());
+    let Some((cell_offset, pair_start, cells_to_show)) = pair_window(chart.data.len(), cw) else {
+        return;
+    };
 
     let mut canvas = BrailleCanvas::new(area.width, area.height);
 
-    for (i, &v) in slice.iter().enumerate() {
-        let dx = offset + i;
-        let ratio = (safe(v) / chart.max).clamp(0.0, 1.0);
-        let height_dots = (ratio * total_dots_y as f32).round() as usize;
-        for k in 0..height_dots {
-            // Fill from the top (the shared x-axis) downward.
-            canvas.set_dot(dx, k);
+    for i in 0..cells_to_show {
+        let cell_x = cell_offset + i;
+        for sub in 0..2 {
+            let v = chart.data[pair_start + i + sub];
+            let ratio = (safe(v) / chart.max).clamp(0.0, 1.0);
+            // Floor at 1 — see render_filled_area for the rationale.
+            let height_dots = ((ratio * total_dots_y as f32).round() as usize).max(1);
+            let dx = cell_x * 2 + sub;
+            for k in 0..height_dots {
+                // Fill from the top (the shared x-axis) downward.
+                canvas.set_dot(dx, k);
+            }
         }
     }
 
@@ -197,31 +225,30 @@ fn render_centered_wave(chart: BrailleChart<'_>, area: Rect, buf: &mut Buffer) {
     // dot row `half` lives at the top of cell `half/4`, not at the visual
     // middle of the area.
     let half = total_dots_y / 2;
-    let dot_cols = cw * 2;
 
-    // One sample per Braille sub-column for full horizontal granularity
-    // (matches btop). Right-aligned so the chart slides left as new samples
-    // arrive — left edge stays blank until the ring buffer fills.
-    let n = dot_cols.min(chart.data.len());
-    let start = chart.data.len().saturating_sub(n);
-    let slice = &chart.data[start..];
-    let offset = dot_cols.saturating_sub(slice.len());
+    let Some((cell_offset, pair_start, cells_to_show)) = pair_window(chart.data.len(), cw) else {
+        return;
+    };
 
     let mut canvas = BrailleCanvas::new(area.width, area.height);
 
-    for (i, &v) in slice.iter().enumerate() {
-        let dx = offset + i;
-        let ratio = (safe(v) / chart.max).clamp(0.0, 1.0);
-        let amplitude = (ratio * half as f32).round() as usize;
-        // Floor at 1 so the chart never visually disappears at zero.
-        let amp = amplitude.max(1);
-        for k in 1..=amp {
-            if let Some(dy) = half.checked_sub(k) {
-                canvas.set_dot(dx, dy);
-            }
-            let dy_below = half + k - 1;
-            if dy_below < total_dots_y {
-                canvas.set_dot(dx, dy_below);
+    for i in 0..cells_to_show {
+        let cell_x = cell_offset + i;
+        for sub in 0..2 {
+            let v = chart.data[pair_start + i + sub];
+            let ratio = (safe(v) / chart.max).clamp(0.0, 1.0);
+            let amplitude = (ratio * half as f32).round() as usize;
+            // Floor at 1 so the chart never visually disappears at zero.
+            let amp = amplitude.max(1);
+            let dx = cell_x * 2 + sub;
+            for k in 1..=amp {
+                if let Some(dy) = half.checked_sub(k) {
+                    canvas.set_dot(dx, dy);
+                }
+                let dy_below = half + k - 1;
+                if dy_below < total_dots_y {
+                    canvas.set_dot(dx, dy_below);
+                }
             }
         }
     }
@@ -247,30 +274,36 @@ fn render_sparkline(chart: BrailleChart<'_>, area: Rect, buf: &mut Buffer) {
         return;
     }
     let last_dot_y = total_dots_y - 1;
-    let dot_cols = cw * 2;
 
-    let n = dot_cols.min(chart.data.len());
-    let start = chart.data.len().saturating_sub(n);
-    let slice = &chart.data[start..];
-    let offset = dot_cols.saturating_sub(slice.len());
+    let Some((cell_offset, pair_start, cells_to_show)) = pair_window(chart.data.len(), cw) else {
+        return;
+    };
 
     let mut canvas = BrailleCanvas::new(area.width, area.height);
 
-    let mut prev: Option<usize> = None;
-    for (i, &v) in slice.iter().enumerate() {
-        let dx = offset + i;
+    let dy_for = |v: f32| -> usize {
         let ratio = (safe(v) / chart.max).clamp(0.0, 1.0);
-        let dy = last_dot_y - (ratio * last_dot_y as f32).round() as usize;
-        // Bridge to the previous dot vertically so the line is continuous.
-        if let Some(py) = prev {
-            let (lo, hi) = if py < dy { (py, dy) } else { (dy, py) };
-            for y in lo..=hi {
-                canvas.set_dot(dx, y);
-            }
+        last_dot_y - (ratio * last_dot_y as f32).round() as usize
+    };
+
+    for i in 0..cells_to_show {
+        let cell_x = cell_offset + i;
+        let dy_left = dy_for(chart.data[pair_start + i]);
+        let dy_right = dy_for(chart.data[pair_start + i + 1]);
+        // Left sub-column: just the older sample's dot. Right
+        // sub-column: vertical bridge from older to newer y so the
+        // line stays continuous across the cell. Adjacent cells share
+        // a sample at the seam (cell K's right == cell K+1's left)
+        // so no inter-cell bridging is needed.
+        canvas.set_dot(cell_x * 2, dy_left);
+        let (lo, hi) = if dy_left < dy_right {
+            (dy_left, dy_right)
         } else {
-            canvas.set_dot(dx, dy);
+            (dy_right, dy_left)
+        };
+        for y in lo..=hi {
+            canvas.set_dot(cell_x * 2 + 1, y);
         }
-        prev = Some(dy);
     }
 
     let last_ratio = chart.data.last().copied().map(safe).unwrap_or(0.0) / chart.max;

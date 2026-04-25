@@ -1,5 +1,9 @@
 # basitop
 
+[![CI](https://github.com/tejasgajare/basitop/actions/workflows/ci.yml/badge.svg)](https://github.com/tejasgajare/basitop/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-M1%E2%80%93M5-black?logo=apple)](#requirements)
+
 A btop-style, real-time performance monitor for Apple Silicon Macs — built in Rust.
 
 Combines **macmon** (no-root IOKit metrics) with **powermetrics** (root-level thermal, SoC power, and I/O) to give you the most complete picture of your M-series chip possible in a terminal.
@@ -79,7 +83,20 @@ Combines **macmon** (no-root IOKit metrics) with **powermetrics** (root-level th
 
 ## Installation
 
-### From source (recommended)
+### Homebrew (recommended)
+
+```bash
+brew install tejasgajare/tap/basitop
+```
+
+Or, if you prefer the tap-then-install flow:
+
+```bash
+brew tap tejasgajare/tap
+brew install basitop
+```
+
+### From source
 
 ```bash
 git clone https://github.com/tejasgajare/basitop.git
@@ -91,6 +108,17 @@ The binary is at `target/release/basitop`. Copy it wherever you like:
 
 ```bash
 sudo cp target/release/basitop /usr/local/bin/
+```
+
+### Pre-built binary (manual)
+
+Each tagged release publishes signed Apple Silicon and Intel tarballs. Pick the asset matching your CPU:
+
+```bash
+# Apple Silicon (M1+)
+curl -L https://github.com/tejasgajare/basitop/releases/latest/download/basitop-aarch64-apple-darwin.tar.gz \
+  | tar -xz
+sudo mv basitop-aarch64-apple-darwin/basitop /usr/local/bin/
 ```
 
 ---

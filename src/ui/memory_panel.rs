@@ -11,8 +11,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Widget};
 
 use crate::metrics::MetricsHistory;
 use crate::theme::{
-    self, BORDER_NORMAL, BORDER_SELECTED, BRIGHT_TEXT, DIM_TEXT, GAUGE_BG, LABEL_COLOR,
-    TITLE_COLOR,
+    self, BORDER_NORMAL, BORDER_SELECTED, BRIGHT_TEXT, DIM_TEXT, GAUGE_BG, LABEL_COLOR, TITLE_COLOR,
 };
 use crate::widgets::{BrailleChart, ChartMode};
 
@@ -196,10 +195,8 @@ fn render_metric(area: Rect, buf: &mut Buffer, label: &str, value: &str, ratio: 
     let pct = (ratio * 100.0).clamp(0.0, 100.0);
     let pct_str = format!("  {:>3.0}% ", pct);
     let pct_w = pct_str.chars().count() as u16;
-    Line::from(Span::styled(pct_str, Style::default().fg(DIM_TEXT))).render(
-        Rect::new(area.x, area.y + 1, pct_w.min(area.width), 1),
-        buf,
-    );
+    Line::from(Span::styled(pct_str, Style::default().fg(DIM_TEXT)))
+        .render(Rect::new(area.x, area.y + 1, pct_w.min(area.width), 1), buf);
 
     if area.width <= pct_w + 1 {
         return;
