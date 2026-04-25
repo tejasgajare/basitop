@@ -13,7 +13,7 @@ Thanks for your interest! This document covers everything you need to get from z
 - [Testing](#testing)
 - [Submitting a pull request](#submitting-a-pull-request)
 - [Code style](#code-style)
-- [Areas that need help](#areas-that-need-help)
+- [Ideas and good first contributions](#ideas-and-good-first-contributions)
 
 ---
 
@@ -21,7 +21,7 @@ Thanks for your interest! This document covers everything you need to get from z
 
 | Tool | Version | Install |
 |------|---------|---------|
-| Rust | 1.75+ | `curl https://sh.rustup.rs -sSf \| sh` |
+| Rust | 1.75+ | `curl https://sh.rustup.rs -sSf | sh` |
 | macOS | 13+ | — |
 | Apple Silicon Mac | M1–M5 | — |
 
@@ -195,13 +195,13 @@ Small, focused PRs merge faster. If you're working on something large, open a dr
 
 ---
 
-## Areas that need help
+## Ideas and good first contributions
 
-The following are known gaps where contributions are especially welcome:
+If you're looking for something to work on:
 
-- **Automated screenshots / demo recording** — a `vhs`-based terminal recording for the README would make a big difference.
-- **CI workflow** — a GitHub Actions pipeline that runs `cargo test` and `cargo clippy` on every PR (macOS runner).
-- **Homebrew formula** — for easy installation via `brew install basitop`.
+- **Automated demo recording** — a `vhs`-based terminal recording for the README would make a big difference.
 - **More samplers** — battery charge/health, fan speed (where exposed by IOKit), process-level breakdown.
 - **Configurable layout** — allow users to hide panels they don't need via a config file or CLI flags.
-- **Color themes** — currently the palette is hard-coded in `theme.rs`; a TOML config for colors would be nice.
+- **Color themes** — the palette is hard-coded in `theme.rs`; a TOML config for colors would be a nice addition.
+
+Feel free to open an issue to discuss before writing code — especially for larger changes.

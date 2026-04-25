@@ -112,10 +112,9 @@ sudo cp target/release/basitop /usr/local/bin/
 
 ### Pre-built binary (manual)
 
-Each tagged release publishes signed Apple Silicon and Intel tarballs. Pick the asset matching your CPU:
+Each tagged release publishes a pre-built Apple Silicon binary:
 
 ```bash
-# Apple Silicon (M1+)
 curl -L https://github.com/tejasgajare/basitop/releases/latest/download/basitop-aarch64-apple-darwin.tar.gz \
   | tar -xz
 sudo mv basitop-aarch64-apple-darwin/basitop /usr/local/bin/
@@ -191,59 +190,15 @@ Options:
 
 ---
 
-## Diagnostics
+## Troubleshooting
 
-If `pm:` stays OFF after running with `sudo`, check the diagnostic log:
+If `pm:` stays `OFF` after running with `sudo`, check the diagnostic log:
 
 ```bash
 cat /tmp/basitop_pm.log
 ```
 
-The log records:
-
-- The exact command line used to invoke `powermetrics`
-- The child PID
-- Reader-thread lifecycle events (start, first sample parsed, exit)
-- Child exit status (e.g. `exit status: 1` means sudo auth failed)
-- Any `powermetrics` stderr output interleaved with timestamps
-
-To run the powermetrics integration test directly:
-
-```bash
-PM_LIVE=1 sudo -E cargo test pm_live -- --nocapture --test-threads=1
-```
-
----
-
-## Architecture
-
-```
-main.rs
-├── MetricsCollector        (src/metrics.rs)
-│   ├── macmon::Sampler     — IOKit metrics, spawned in a background thread
-│   ├── sysinfo::System     — per-core CPU usage deltas
-│   └── PowerMetricsCollector  (src/powermetrics.rs)
-│       └── powermetrics(8) — plist stream parsed in a reader thread
-│
-├── AppState / event loop   (src/app.rs)
-│
-└── UI                      (src/ui/)
-    ├── cpu_panel           — main braille chart + per-core sparklines
-    ├── gpu_panel           — GPU utilization & frequency
-    ├── power_panel         — CPU/GPU/ANE/SoC power gauges
-    ├── memory_panel        — RAM & swap bars (btop style)
-    ├── io_panel            — mirror disk/net charts
-    ├── thermal_panel       — temperature bars + throttle indicator
-    ├── header              — chip / memory / core topology
-    └── footer              — keybindings + pm state indicator
-```
-
-**Widget layer** (`src/widgets/`):
-
-- `BrailleCanvas` — low-level 2×4 dot grid renderer.
-- `BrailleChart` — higher-level chart widget with modes: `FilledArea`, `FilledAreaInverted`, `CenteredWave`, `Sparkline`, `HeatStrip`, `PulseTrail`.
-- `GradientGauge` — horizontal bar gauge with HSL gradient fill.
-- `GradientPalette` — multi-stop HSL color interpolator used across all charts.
+The log records the exact command used, the child PID, first-sample timestamp, and any powermetrics stderr. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to run the live integration test.
 
 ---
 
