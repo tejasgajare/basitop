@@ -89,13 +89,6 @@ Combines **macmon** (no-root IOKit metrics) with **powermetrics** (root-level th
 brew install tejasgajare/tap/basitop
 ```
 
-Or, if you prefer the tap-then-install flow:
-
-```bash
-brew tap tejasgajare/tap
-brew install basitop
-```
-
 ### From source
 
 ```bash
