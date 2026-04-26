@@ -14,9 +14,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Widget};
 
 use crate::metrics::MetricsHistory;
-use crate::theme::{
-    BORDER_NORMAL, BORDER_SELECTED, BRIGHT_TEXT, LABEL_COLOR, TITLE_COLOR,
-};
+use crate::theme::{BORDER_NORMAL, BORDER_SELECTED, BRIGHT_TEXT, LABEL_COLOR, TITLE_COLOR};
 use crate::widgets::{BrailleChart, ChartMode};
 
 const DISK_READ_COLOR: Color = Color::Rgb(97, 214, 214);

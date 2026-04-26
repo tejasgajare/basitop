@@ -38,8 +38,7 @@ impl Widget for Footer {
         let right_width: u16 = 14;
 
         let [left_area, right_area] =
-            Layout::horizontal([Constraint::Fill(1), Constraint::Length(right_width)])
-                .areas(area);
+            Layout::horizontal([Constraint::Fill(1), Constraint::Length(right_width)]).areas(area);
 
         // Left: keybindings + pm state
         let mut left_spans = vec![
@@ -50,7 +49,10 @@ impl Widget for Footer {
             Span::styled("h", Style::default().fg(LABEL_COLOR)),
             Span::styled(" Help  ", Style::default().fg(DIM_TEXT)),
             Span::styled("pm:", Style::default().fg(LABEL_COLOR)),
-            Span::styled(format!(" {}", pm_label), Style::default().fg(pm_color).bold()),
+            Span::styled(
+                format!(" {}", pm_label),
+                Style::default().fg(pm_color).bold(),
+            ),
         ];
         if matches!(self.pm_state, PmState::Off) {
             left_spans.push(Span::styled(
