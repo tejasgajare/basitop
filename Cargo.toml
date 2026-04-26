@@ -2,11 +2,12 @@
 name = "basitop"
 version = "0.1.0"
 edition = "2021"
-description = "Beautiful Apple Silicon performance monitor"
+description = "btop-style Apple Silicon performance monitor for macOS — CPU, GPU, power, thermal, memory in your terminal. Built in Rust, no sudo required."
 license = "MIT"
 repository = "https://github.com/tejasgajare/basitop"
+homepage = "https://github.com/tejasgajare/basitop"
 keywords = ["apple-silicon", "macos", "tui", "monitor", "performance"]
-categories = ["command-line-utilities"]
+categories = ["command-line-utilities", "visualization"]
 
 [dependencies]
 macmon = "0.7"

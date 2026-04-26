@@ -101,12 +101,12 @@ impl AppState {
             KeyCode::Char('h') => {
                 self.show_help = !self.show_help;
             }
-            KeyCode::Char('+') | KeyCode::Char('=') if self.update_interval_ms < 5000 => {
-                self.update_interval_ms += 500;
+            KeyCode::Char('+') | KeyCode::Char('=') if self.update_interval_ms < 10000 => {
+                self.update_interval_ms += 100;
                 self.apply_interval_change();
             }
-            KeyCode::Char('-') if self.update_interval_ms > 500 => {
-                self.update_interval_ms -= 500;
+            KeyCode::Char('-') if self.update_interval_ms > 200 => {
+                self.update_interval_ms -= 100;
                 self.apply_interval_change();
             }
             // Arrow key navigation (spatial). Right column stack:

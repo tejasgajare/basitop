@@ -94,8 +94,8 @@ impl Widget for CpuPanel<'_> {
 
         let core_count = self.history.core_count;
         let core_rows_needed = if core_count > 0 {
-            // Two columns of cores + 1 row for the cluster summary.
-            (core_count.div_ceil(2)) as u16 + 1
+            // Cores split evenly across two columns; +1 for the cluster summary line.
+            core_count.div_ceil(2) as u16 + 1
         } else {
             3
         };
@@ -207,24 +207,27 @@ fn render_per_core(
     let cols = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(remaining);
 
-    // Split by cluster boundary so each column is homogeneous and labels use
-    // cluster-local indices (E0/P0, not E0/P12 on M5 Max).
-    let cluster_starts = [0, ecpu_n];
-    let cluster_ends = [ecpu_n.min(core_count), core_count];
-    let cluster_labels = [ecpu_label, pcpu_label];
+    // Split evenly by count: left = first half, right = second half.
+    // Labels use cluster-relative indices so P9 stays "P9" and the first
+    // S-core shows as "S0" even when it lands in the right column.
+    let cores_per_col = core_count.div_ceil(2);
 
-    for col_idx in 0..2 {
+    for col_idx in 0..2usize {
         let col_area = cols[col_idx];
-        let start = cluster_starts[col_idx];
-        let end = cluster_ends[col_idx];
-        let label_prefix = cluster_labels[col_idx];
+        let col_start = col_idx * cores_per_col;
 
         for row in 0..col_area.height as usize {
-            let core_idx = start + row;
-            if core_idx >= end {
+            let core_idx = col_start + row;
+            if core_idx >= core_count {
                 break;
             }
-            let local_idx = core_idx - start;
+
+            // Cluster-relative label
+            let (label_prefix, local_idx) = if core_idx < ecpu_n {
+                (ecpu_label, core_idx)
+            } else {
+                (pcpu_label, core_idx - ecpu_n)
+            };
 
             let y = col_area.y + row as u16;
             let usage = history

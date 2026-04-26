@@ -12,6 +12,8 @@ Combines **macmon** (no-root IOKit metrics) with **powermetrics** (root-level th
 
 ## Preview
 
+![basitop demo](demo.gif)
+
 ```
 ╭─ Apple M5 Max  128 GB  P-cores: 12 · S-cores: 4 · GPU: 40 ──────────────────╮
 ╭─ CPU 31% ──────────────────────────────────────╮ ╭─ Power ───────────────────╮
@@ -200,6 +202,7 @@ The log records the exact command used, the child PID, first-sample timestamp, a
 - [macmon](https://github.com/vladkens/macmon) — Rust crate that reads Apple Silicon power/frequency/temp via IOKit without root.
 - [btop](https://github.com/aristocratos/btop) — visual inspiration for layout, color style, and the mirror I/O chart.
 - [asitop](https://github.com/tlkh/asitop) — reference implementation for powermetrics plist parsing on Apple Silicon.
+- [htop](https://github.com/htop-dev/htop) / [btop](https://github.com/aristocratos/btop) — the TUI monitor genre that inspired the layout and interaction model.
 - [ratatui](https://github.com/ratatui-org/ratatui) — terminal UI framework.
 
 ---
