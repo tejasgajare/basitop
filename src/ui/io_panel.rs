@@ -164,8 +164,8 @@ fn render_pair(
     if chart_total < 2 {
         return;
     }
-    let top_h = chart_total / 2;
-    let bot_h = chart_total - top_h;
+    let top_h = chart_total.div_ceil(2);
+    let bot_h = chart_total / 2;
 
     let top_area = Rect::new(area.x, area.y + 1, area.width, top_h);
     let bot_area = Rect::new(area.x, area.y + 1 + top_h, area.width, bot_h);
