@@ -460,6 +460,23 @@ fn joules_to_w(joules: Option<f64>, elapsed_s: Option<f64>) -> Option<f32> {
     }
 }
 
+fn num(v: Option<&plist::Value>) -> Option<f64> {
+    let v = v?;
+    if let Some(i) = v.as_signed_integer() {
+        return Some(i as f64);
+    }
+    if let Some(u) = v.as_unsigned_integer() {
+        return Some(u as f64);
+    }
+    if let Some(f) = v.as_real() {
+        return Some(f);
+    }
+    if let Some(s) = v.as_string() {
+        return s.parse().ok();
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -535,21 +552,4 @@ mod tests {
         }
         assert!(samples > 0, "no samples parsed from {}", path);
     }
-}
-
-fn num(v: Option<&plist::Value>) -> Option<f64> {
-    let v = v?;
-    if let Some(i) = v.as_signed_integer() {
-        return Some(i as f64);
-    }
-    if let Some(u) = v.as_unsigned_integer() {
-        return Some(u as f64);
-    }
-    if let Some(f) = v.as_real() {
-        return Some(f);
-    }
-    if let Some(s) = v.as_string() {
-        return s.parse().ok();
-    }
-    None
 }
